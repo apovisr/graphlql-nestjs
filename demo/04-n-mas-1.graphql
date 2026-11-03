@@ -1,0 +1,56 @@
+# =====================================================================
+# 04 · PROBLEMA N+1 (sobrecarga de la base de datos)
+# ---------------------------------------------------------------------
+# Cada campo anidado tiene su propio resolver, que se ejecuta UNA VEZ POR
+# CADA PADRE. Si cada ejecución lanza su SELECT:
+#   1 query para los 50 autores
+#   + 50 queries (libros de cada autor)
+#   + 150 queries (géneros de cada libro) + 150 (media de cada libro) ...
+#
+# CÓMO VERLO
+#   a) En Sandbox, pestaña "Headers", añade:  x-dataloader: off
+#      Ejecuta y mira "extensions.sqlQueries" (≈ 350) y la consola del
+#      servidor, donde salen todos los SQL numerados.
+#   b) Quita la cabecera (o pon x-dataloader: on) y vuelve a ejecutar.
+#      Mismos datos con 5 queries.
+#
+# LA SOLUCIÓN: DataLoader (src/loaders/). Acumula todos los .load(id) del
+# mismo "tick" y los resuelve con un único  WHERE id = ANY($1).
+# =====================================================================
+
+query AutoresConLibros {
+  authors(limit: 50) {
+    items {
+      name
+      books(first: 3) {
+        title
+        averageRating
+        genres {
+          name
+        }
+      }
+    }
+  }
+}
+
+# Otro caso típico: la relación "hacia arriba" (muchos hijos -> mismo padre).
+# Sin DataLoader se repite el SELECT del mismo lector o libro muchas veces;
+# con DataLoader cada id se pide una sola vez (además se cachea en la petición).
+query ResenasConLectorYLibro {
+  booksConnection(first: 20) {
+    edges {
+      node {
+        title
+        author {
+          name
+        }
+        reviews(first: 5) {
+          rating
+          reader {
+            name
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+# =====================================================================
+# 03 · SUBSCRIPTIONS: tiempo real por WebSocket (protocolo graphql-ws)
+# ---------------------------------------------------------------------
+# 1. Abre una pestaña de Sandbox y ejecuta una de estas subscriptions.
+#    Se queda "escuchando".
+# 2. En OTRA pestaña ejecuta las mutations de abajo (o las de 02).
+# 3. Vuelve a la primera: el evento aparece al instante, con los campos
+#    anidados que pediste (book, reader...).
+# =====================================================================
+
+# Solo reseñas del libro indicado (el `filter` del servidor descarta el resto).
+# Sin `bookId` recibes todas.
+subscription NuevasResenas($bookId: ID = 10) {
+  reviewAdded(bookId: $bookId) {
+    rating
+    comment
+    createdAt
+    book {
+      title
+    }
+    reader {
+      name
+    }
+  }
+}
+
+# Se emite con cada préstamo y cada devolución.
+subscription DisponibilidadDeUnLibro($bookId: ID = 10) {
+  bookAvailabilityChanged(bookId: $bookId) {
+    id
+    title
+    availableCopies
+    totalCopies
+  }
+}
+
+# ---------- Ejecuta estas en otra pestaña para disparar eventos ----------
+
+mutation DispararResena {
+  addReview(input: { bookId: 10, readerId: 3, rating: 4, comment: "Llega en tiempo real" }) {
+    id
+  }
+}
+
+mutation DispararResenaDeOtroLibro {
+  # No debería llegar a NuevasResenas(bookId: 10)
+  addReview(input: { bookId: 11, readerId: 3, rating: 2 }) {
+    id
+  }
+}
+
+mutation DispararPrestamo {
+  borrowBook(bookId: 10, readerId: 3) {
+    id
+  }
+}

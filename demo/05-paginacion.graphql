@@ -1,0 +1,118 @@
+# =====================================================================
+# 05 · PAGINACIÓN: offset vs cursor
+# ---------------------------------------------------------------------
+# GraphQL no trae paginación "de serie": hay que diseñarla. Este proyecto
+# expone las dos formas habituales sobre los mismos datos (libros, del más
+# nuevo al más antiguo) para compararlas.
+# =====================================================================
+
+# ---------- OFFSET:  LIMIT 3 OFFSET x ----------
+query PaginaOffset($offset: Int = 0) {
+  books(offset: $offset, limit: 3) {
+    total
+    hasMore
+    items {
+      id
+      title
+    }
+  }
+}
+
+# ---------- CURSOR (Relay Connections):  WHERE (created_at, id) < cursor ----------
+# Copia el `endCursor` de la respuesta en la variable `after` para la siguiente página.
+query PaginaCursor($after: String) {
+  booksConnection(first: 3, after: $after) {
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+# ---------------------------------------------------------------------
+# PROBLEMA 1 del offset: datos que se mueven entre página y página
+#   1. Ejecuta PaginaOffset (offset 0) y PaginaCursor (sin after).
+#   2. Ejecuta InsertarLibroEntrePaginas (simula que alguien añade un libro).
+#   3. Ejecuta PaginaOffset con offset 3: el primer libro ya lo habías visto.
+#   4. Ejecuta PaginaCursor con el endCursor del paso 1: continúa sin repetir.
+# ---------------------------------------------------------------------
+mutation InsertarLibroEntrePaginas($isbn: String! = "978-84-0000-005-5") {
+  createBook(
+    input: {
+      title: "Recién llegado"
+      isbn: $isbn
+      publishedYear: 2025
+      pages: 100
+      authorId: 1
+      genreIds: [1]
+    }
+  ) {
+    id
+  }
+}
+
+# ---------------------------------------------------------------------
+# PROBLEMA 2 del offset: cuanto más lejos, más lento. Postgres tiene que leer
+# y descartar todas las filas anteriores. Compara "durationMs" con la misma
+# página por cursor. Con pocos datos apenas se nota: siembra más con
+#   SEED_SCALE=20 npm run seed      (~100.000 libros)
+# y usa un offset cercano al total. Medido en local con 100.000 libros, la misma
+# página tarda ~45 ms con offset: 99960 y ~3 ms con cursor.
+# ---------------------------------------------------------------------
+query OffsetLejano($offset: Int = 4900) {
+  books(offset: $offset, limit: 20) {
+    items {
+      id
+    }
+  }
+}
+
+# ---------------------------------------------------------------------
+# El COUNT(*) también cuesta. Con cursor, `totalCount` es un campo más:
+# solo se calcula si el cliente lo pide (mira sqlQueries con y sin él).
+# ---------------------------------------------------------------------
+query TotalSoloSiLoPides {
+  booksConnection(first: 5, filter: { genreId: 2 }) {
+    totalCount
+    edges {
+      node {
+        title
+      }
+    }
+  }
+}
+
+# ---------------------------------------------------------------------
+# PAGINACIÓN ANIDADA: "los 2 libros más recientes de CADA autor".
+# Un LIMIT normal limitaría el total, no por autor. El DataLoader lo
+# resuelve en una sola consulta con ROW_NUMBER() OVER (PARTITION BY author_id).
+# ---------------------------------------------------------------------
+query PaginacionAnidada {
+  authors(limit: 5) {
+    items {
+      name
+      books(first: 2) {
+        title
+        createdAt
+      }
+    }
+  }
+}
+
+# Los límites también protegen: más de 100 elementos por página se rechaza.
+query PaginaDemasiadoGrande {
+  booksConnection(first: 101) {
+    edges {
+      node {
+        id
+      }
+    }
+  }
+}

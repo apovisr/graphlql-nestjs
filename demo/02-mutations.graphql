@@ -1,0 +1,149 @@
+# =====================================================================
+# 02 · MUTATIONS: escribir datos y pedir de vuelta lo que necesites
+# ---------------------------------------------------------------------
+# Una mutation devuelve un tipo normal: puedes pedir campos anidados del
+# resultado (author, genres...) en la misma petición.
+# =====================================================================
+
+mutation CrearAutor {
+  createAuthor(input: { name: "Autora de la demo", country: "España", birthYear: 1980 }) {
+    id
+    name
+    createdAt
+  }
+}
+
+# Cambia el isbn si lo ejecutas más de una vez (es único).
+mutation CrearLibro(
+  $input: CreateBookInput! = {
+    title: "GraphQL en la práctica"
+    isbn: "978-84-0000-001-0"
+    publishedYear: 2025
+    pages: 320
+    totalCopies: 1
+    authorId: 1
+    genreIds: [10, 15]
+  }
+) {
+  createBook(input: $input) {
+    id
+    title
+    totalCopies
+    availableCopies
+    author {
+      name
+    }
+    genres {
+      name
+    }
+  }
+}
+
+# Las validaciones (class-validator) se aplican antes de llegar al servicio.
+mutation ActualizarLibro($id: ID! = 1) {
+  updateBook(id: $id, input: { totalCopies: 4, genreIds: [1] }) {
+    title
+    totalCopies
+    availableCopies
+    genres {
+      name
+    }
+  }
+}
+
+mutation RegistrarLector {
+  registerReader(input: { name: "Lector de la demo", email: "lector@demo.test" }) {
+    id
+    email
+    memberSince
+  }
+}
+
+# Además de guardar, emite el evento de la subscription `reviewAdded` (ver 03).
+mutation AnadirResena($bookId: ID! = 10, $readerId: ID! = 1) {
+  addReview(input: { bookId: $bookId, readerId: $readerId, rating: 5, comment: "¡Me encantó!" }) {
+    id
+    rating
+    book {
+      title
+      averageRating
+    }
+    reader {
+      name
+    }
+  }
+}
+
+# Emite `bookAvailabilityChanged`. `status` es un campo calculado (enum).
+mutation PrestarLibro($bookId: ID! = 10, $readerId: ID! = 1) {
+  borrowBook(bookId: $bookId, readerId: $readerId) {
+    id
+    status
+    dueAt
+    book {
+      title
+      availableCopies
+    }
+  }
+}
+
+# Usa el id que devolvió PrestarLibro (tras un seed limpio, el primero es el 10001).
+mutation DevolverLibro($loanId: ID! = 10001) {
+  returnBook(loanId: $loanId) {
+    id
+    status
+    returnedAt
+    book {
+      availableCopies
+    }
+  }
+}
+
+mutation BorrarLibro($id: ID! = 5000) {
+  deleteBook(id: $id)
+}
+
+# ---------------------------------------------------------------------
+# Errores: GraphQL responde con HTTP 200, `data` parcial y una lista
+# `errors` con un `extensions.code` estable para el cliente.
+# ---------------------------------------------------------------------
+
+# Validación de entrada -> BAD_USER_INPUT con el detalle por campo
+mutation ErrorDeValidacion {
+  addReview(input: { bookId: 10, readerId: 1, rating: 7 }) {
+    id
+  }
+}
+
+# Regla de negocio -> NO_COPIES_AVAILABLE (con el seed, el libro 14 no tiene ejemplares libres)
+mutation ErrorDeNegocio($bookId: ID! = 14) {
+  borrowBook(bookId: $bookId, readerId: 1) {
+    id
+  }
+}
+
+# Los campos raíz de una mutation se ejecutan EN ORDEN (los de una query, en paralelo).
+# El libro 4 tiene 1 solo ejemplar: `primero` lo consigue y `segundo` falla.
+#
+# Sorpresa: la respuesta es `"data": null`, aunque `primero` SÍ se guardó.
+# borrowBook devuelve `Loan!` (no nulo): cuando `segundo` falla no puede ser
+# null, así que el null "sube" hasta el padre nullable más cercano, que aquí
+# es la raíz. Decidir qué campos son nullables es parte del diseño del schema.
+mutation MutacionesEnSerie($bookId: ID! = 4) {
+  primero: borrowBook(bookId: $bookId, readerId: 1) {
+    id
+    book {
+      availableCopies
+    }
+  }
+  segundo: borrowBook(bookId: $bookId, readerId: 2) {
+    id
+  }
+}
+
+# Recurso inexistente -> NOT_FOUND
+mutation ErrorNoEncontrado {
+  borrowBook(bookId: 999999, readerId: 1) {
+    id
+  }
+}

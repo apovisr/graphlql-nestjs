@@ -1,0 +1,270 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AddReviewInput {
+  bookId: ID!
+  comment: String
+
+  """De 1 a 5"""
+  rating: Int!
+  readerId: ID!
+}
+
+"""Autor de uno o varios libros"""
+type Author {
+  birthYear: Int
+
+  """Libros más recientes del autor"""
+  books(first: Int! = 10): [Book!]!
+  country: String
+  createdAt: DateTime!
+  id: ID!
+  name: String!
+}
+
+type AuthorPage {
+  hasMore: Boolean!
+  items: [Author!]!
+  limit: Int!
+  offset: Int!
+
+  """Total de elementos (requiere un COUNT extra)"""
+  total: Int!
+}
+
+"""Libro del catálogo"""
+type Book {
+  author: Author!
+
+  """Ejemplares que se pueden prestar ahora mismo"""
+  availableCopies: Int!
+
+  """Campo calculado: media de las reseñas (no es una columna)"""
+  averageRating: Float
+  createdAt: DateTime!
+  genres: [Genre!]!
+  id: ID!
+  isbn: String!
+
+  """Préstamos más recientes"""
+  loans(first: Int! = 10): [Loan!]!
+  pages: Int!
+  publishedYear: Int!
+
+  """Reseñas más recientes"""
+  reviews(first: Int! = 10): [Review!]!
+  title: String!
+
+  """Ejemplares que tiene la biblioteca"""
+  totalCopies: Int!
+}
+
+"""Página de libros por cursor (spec Relay Connections)"""
+type BookConnection {
+  edges: [BookEdge!]!
+  pageInfo: PageInfo!
+
+  """Total de libros que cumplen el filtro"""
+  totalCount: Int!
+}
+
+type BookEdge {
+  """Cursor opaco que apunta a este elemento"""
+  cursor: String!
+  node: Book!
+}
+
+"""Todos los criterios son opcionales y se combinan con AND"""
+input BookFilterInput {
+  authorId: ID
+  genreId: ID
+
+  """Solo libros con ejemplares libres"""
+  onlyAvailable: Boolean
+  publishedAfter: Int
+
+  """Texto contenido en el título"""
+  search: String
+}
+
+"""Página de libros por offset"""
+type BookPage {
+  hasMore: Boolean!
+  items: [Book!]!
+  limit: Int!
+  offset: Int!
+
+  """Total de elementos (requiere un COUNT extra)"""
+  total: Int!
+}
+
+input CreateAuthorInput {
+  birthYear: Int
+  country: String
+  name: String!
+}
+
+input CreateBookInput {
+  authorId: ID!
+  genreIds: [ID!]!
+
+  """ISBN-10 o ISBN-13, con o sin guiones"""
+  isbn: String!
+  pages: Int!
+  publishedYear: Int!
+  title: String!
+  totalCopies: Int! = 1
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""Género literario (relación N:M con libros)"""
+type Genre {
+  """Libros más recientes del género"""
+  books(first: Int! = 10): [Book!]!
+  id: ID!
+  name: String!
+}
+
+"""Préstamo de un ejemplar a un lector"""
+type Loan {
+  book: Book!
+
+  """Fecha límite de devolución"""
+  dueAt: DateTime!
+  id: ID!
+  loanedAt: DateTime!
+  reader: Reader!
+  returnedAt: DateTime
+
+  """Campo calculado, no existe en la BD"""
+  status: LoanStatus!
+}
+
+"""Estado calculado a partir de las fechas del préstamo"""
+enum LoanStatus {
+  """Prestado y dentro de plazo"""
+  ACTIVE
+
+  """Prestado y fuera de plazo"""
+  OVERDUE
+
+  """Devuelto"""
+  RETURNED
+}
+
+type Mutation {
+  """Publica una reseña y la emite por `reviewAdded`"""
+  addReview(input: AddReviewInput!): Review!
+
+  """Presta un ejemplar. Error NO_COPIES_AVAILABLE si no quedan."""
+  borrowBook(bookId: ID!, readerId: ID!): Loan!
+  createAuthor(input: CreateAuthorInput!): Author!
+  createBook(input: CreateBookInput!): Book!
+  deleteBook(id: ID!): Boolean!
+  registerReader(input: RegisterReaderInput!): Reader!
+
+  """Devuelve un préstamo y libera el ejemplar"""
+  returnBook(loanId: ID!): Loan!
+  updateBook(id: ID!, input: UpdateBookInput!): Book!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+}
+
+type Query {
+  author(id: ID!): Author
+
+  """Autores ordenados por nombre (paginación por offset)"""
+  authors(limit: Int! = 20, offset: Int! = 0): AuthorPage!
+  book(id: ID!): Book
+
+  """Libros paginados por OFFSET (más recientes primero)"""
+  books(filter: BookFilterInput, limit: Int! = 20, offset: Int! = 0): BookPage!
+
+  """Libros paginados por CURSOR (más recientes primero)"""
+  booksConnection(
+    """Cursor opaco: el `endCursor` de la página anterior"""
+    after: String
+    filter: BookFilterInput
+    first: Int! = 20
+  ): BookConnection!
+
+  """Todos los géneros (son pocos: no se paginan)"""
+  genres: [Genre!]!
+  reader(id: ID!): Reader
+  readers(limit: Int! = 20, offset: Int! = 0): ReaderPage!
+
+  """Busca por texto en libros, autores y lectores"""
+  search(
+    """Máximo de resultados por tipo"""
+    limitPerType: Int! = 5
+    term: String!
+  ): [SearchResult!]!
+}
+
+"""Socio de la biblioteca: escribe reseñas y pide préstamos"""
+type Reader {
+  email: String!
+  id: ID!
+  loans(first: Int! = 10): [Loan!]!
+  memberSince: DateTime!
+  name: String!
+  reviews(first: Int! = 10): [Review!]!
+}
+
+type ReaderPage {
+  hasMore: Boolean!
+  items: [Reader!]!
+  limit: Int!
+  offset: Int!
+
+  """Total de elementos (requiere un COUNT extra)"""
+  total: Int!
+}
+
+input RegisterReaderInput {
+  email: String!
+  name: String!
+}
+
+"""Reseña de un lector sobre un libro"""
+type Review {
+  book: Book!
+  comment: String
+  createdAt: DateTime!
+  id: ID!
+
+  """Valoración de 1 a 5"""
+  rating: Int!
+  reader: Reader!
+}
+
+"""Un libro, un autor o un lector"""
+union SearchResult = Author | Book | Reader
+
+type Subscription {
+  """Cambios en los ejemplares disponibles (préstamos y devoluciones)"""
+  bookAvailabilityChanged(bookId: ID): Book!
+
+  """Nuevas reseñas; con `bookId` solo las de ese libro"""
+  reviewAdded(bookId: ID): Review!
+}
+
+input UpdateBookInput {
+  authorId: ID
+  genreIds: [ID!]
+
+  """ISBN-10 o ISBN-13, con o sin guiones"""
+  isbn: String
+  pages: Int
+  publishedYear: Int
+  title: String
+  totalCopies: Int = 1
+}

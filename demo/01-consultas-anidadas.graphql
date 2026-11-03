@@ -1,0 +1,106 @@
+# =====================================================================
+# 01 · BENEFICIOS: consultas anidadas y "pide solo lo que necesitas"
+# ---------------------------------------------------------------------
+# Pega el archivo en Apollo Sandbox (http://localhost:3000/graphql) y
+# elige qué operación ejecutar. Mira siempre "extensions" en la respuesta:
+# te dice cuántos SQL costó la petición.
+# =====================================================================
+
+# 1) Un solo viaje al servidor para una pantalla completa de "detalle de libro".
+#    En REST serían varias llamadas: /books/10, /authors/:id, /books/10/reviews,
+#    y una por cada lector de las reseñas...
+query DetalleDeLibro($id: ID! = 10) {
+  book(id: $id) {
+    title
+    publishedYear
+    availableCopies
+    averageRating # campo calculado: no existe como columna
+    author {
+      name
+      country
+    }
+    genres {
+      name
+    }
+    reviews(first: 3) {
+      rating
+      comment
+      reader {
+        name
+      }
+    }
+  }
+}
+
+# 2) Misma entidad, otra pantalla (un listado): solo los campos que se pintan.
+#    El servidor no envía (ni calcula) nada más. Compara el tamaño de la
+#    respuesta y "sqlQueries" con la operación anterior.
+query SoloLoQueNecesito {
+  books(limit: 5) {
+    items {
+      title
+    }
+  }
+}
+
+# 3) Fragments: reutilizar una selección de campos en varios sitios.
+fragment TarjetaLibro on Book {
+  id
+  title
+  author {
+    name
+  }
+}
+
+query ConFragments($autorId: ID! = 1) {
+  author(id: $autorId) {
+    name
+    books(first: 3) {
+      ...TarjetaLibro
+    }
+  }
+  booksConnection(first: 3) {
+    edges {
+      node {
+        ...TarjetaLibro
+      }
+    }
+  }
+}
+
+# 4) Varias "raíces" en la misma petición, con aliases para renombrarlas.
+query PortadaDeLaApp {
+  generos: genres {
+    name
+  }
+  novedades: booksConnection(first: 3) {
+    edges {
+      node {
+        title
+      }
+    }
+  }
+  autoresPorNombre: authors(limit: 3) {
+    total
+    items {
+      name
+    }
+  }
+}
+
+# 5) El schema se documenta solo (introspección): de aquí sale el panel
+#    "Documentation" de Sandbox y el autocompletado del editor.
+query QueCamposTieneUnLibro {
+  __type(name: "Book") {
+    name
+    description
+    fields {
+      name
+      description
+      type {
+        name
+        kind
+      }
+    }
+  }
+}

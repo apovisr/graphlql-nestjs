@@ -1,0 +1,30 @@
+# =====================================================================
+# 07 · UNIONS: un campo que devuelve tipos distintos
+# ---------------------------------------------------------------------
+# `search` devuelve [SearchResult], donde SearchResult = Book | Author | Reader.
+# Con `__typename` sabes qué es cada resultado y con fragments inline
+# (`... on Tipo`) pides campos distintos según el tipo.
+# =====================================================================
+
+query Buscar($term: String! = "garc") {
+  search(term: $term, limitPerType: 3) {
+    __typename
+    ... on Book {
+      id
+      title
+      author {
+        name
+      }
+    }
+    ... on Author {
+      id
+      name
+      country
+    }
+    ... on Reader {
+      id
+      name
+      email
+    }
+  }
+}

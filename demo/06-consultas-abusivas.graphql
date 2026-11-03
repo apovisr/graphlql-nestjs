@@ -1,0 +1,81 @@
+# =====================================================================
+# 06 · SOBRECARGA POR CONSULTAS ABUSIVAS
+# ---------------------------------------------------------------------
+# La flexibilidad de GraphQL también vale para un atacante (o un cliente
+# descuidado): con un solo endpoint puede pedir una cantidad enorme de
+# trabajo. Defensas configuradas en .env (src/common/graphql/query-limits.plugin.ts):
+#   MAX_QUERY_DEPTH=7          -> graphql-depth-limit
+#   MAX_QUERY_COMPLEXITY=1000  -> graphql-query-complexity
+# Las dos rechazan la query ANTES de ejecutar nada (sqlQueries: 0).
+#
+# Para ver el "antes", pon ambas a 0 en .env, reinicia y ejecuta de nuevo.
+# Con el seed por defecto y la cabecera x-dataloader: off, AtaqueCircular
+# lanza ~1.700 SQL y ListasGigantes ~2.600 (con DataLoader son pocas queries,
+# pero la respuesta sigue siendo enorme: el límite hace falta igualmente).
+# =====================================================================
+
+# Relaciones circulares: autor -> libros -> reseñas -> lector -> reseñas -> libro -> autor...
+# Cada nivel multiplica el trabajo. Error: QUERY_TOO_DEEP
+query AtaqueCircular {
+  author(id: 1) {
+    books(first: 10) {
+      reviews(first: 10) {
+        reader {
+          reviews(first: 10) {
+            book {
+              author {
+                books(first: 10) {
+                  title
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Poca profundidad, pero listas enormes: 100 autores x 100 libros x 100 reseñas.
+# Coste estimado: más de un millón de puntos. Error: QUERY_TOO_COMPLEX
+query ListasGigantes {
+  authors(limit: 100) {
+    items {
+      books(first: 100) {
+        reviews(first: 100) {
+          rating
+        }
+      }
+    }
+  }
+}
+
+# Aliases: la misma consulta repetida N veces en una sola petición.
+# Cada alias suma su coste, así que la complejidad también lo frena.
+query AtaqueConAliases {
+  a1: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a2: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a3: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a4: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a5: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a6: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a7: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+  a8: books(limit: 20) { items { title author { name } reviews(first: 5) { rating } } }
+}
+
+# Una consulta razonable pasa sin problemas. Mira "extensions.complexity".
+query ConsultaRazonable {
+  booksConnection(first: 20) {
+    edges {
+      node {
+        title
+        author {
+          name
+        }
+        reviews(first: 3) {
+          rating
+        }
+      }
+    }
+  }
+}
